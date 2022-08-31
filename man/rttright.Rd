@@ -10,7 +10,6 @@
 \usage{
 rttright(formula, data, weights, subset, na.action, times, id, timefix = TRUE)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
   \item{formula}{
     a formula object, which must have a 
@@ -48,7 +47,7 @@ rttright(formula, data, weights, subset, na.action, times, id, timefix = TRUE)
   The \code{formula} argument is treated exactly the same as in the
   \code{survfit} function.
   
-  Redistribution is recursive: redistribute the weight of the smallest
+  Redistribution is recursive: redistribute the weight of the first
   censored observation to all those with longer time, which may include
   other censored observations.  Then redistribute the next smallest and
   etc. up to the specified \code{time} value.
@@ -60,7 +59,13 @@ rttright(formula, data, weights, subset, na.action, times, id, timefix = TRUE)
 
   A primary use of this routine is illustration of methods or
   exploration of new methods.  Methods that use RTTR directly, such as
-  the Brier score, will normally do these compuations internally.
+  the Brier score, will often do these compuations internally.
+
+  A covariate on the right hand side of the formula causes
+  redistribution to occur within group; a censoring in group 1
+  redistributes weights to others in group 1, etc.  This is appropriate
+  when the censoring pattern depends upon group.
+  
 }
 \value{a vector or matrix of weights, with one column for each requested time} 
 \seealso{
@@ -70,9 +75,14 @@ rttright(formula, data, weights, subset, na.action, times, id, timefix = TRUE)
 afit <- survfit(Surv(time, status) ~1, data=aml)
 rwt  <- rttright(Surv(time, status) ~1, data=aml)
 
+# Reproduce a Kaplan-Meier
 index <- order(aml$time)
 cdf <- cumsum(rwt[index])  # weighted CDF
-cdf <- cdf[!duplicated(aml$time[index], fromLast=TRUE)]  # remove duplicates
+cdf <- cdf[!duplicated(aml$time[index], fromLast=TRUE)]  # remove duplicate times
 cbind(time=afit$time, KM= afit$surv, RTTR= 1-cdf)
+
+# Hormonal patients have a diffent censoring pattern
+wt2 <- rttright(Surv(dtime, death) ~ hormon, rotterdam, times= 365*c(3, 5))
+dim(wt2)
 }
 \keyword{ survival }

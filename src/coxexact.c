@@ -4,6 +4,8 @@
 #include "survproto.h"
 #include <R_ext/Utils.h>
 
+#define NOTDONE -1.1
+
 double coxd0(int d, int n, double *score, double *dmat,
              int dmax) {
     double *dn;
@@ -11,9 +13,9 @@ double coxd0(int d, int n, double *score, double *dmat,
     if (d==0) return(1.0);
     dn = dmat + (n-1)*dmax + d -1;  /* pointer to dmat[d,n] */
 
-    if (*dn ==0) {  /* still to be computed */
+    if (*dn == NOTDONE) {  /* still to be computed */
         *dn = score[n-1]* coxd0(d-1, n-1, score, dmat, dmax);
-            if (d<n) *dn += coxd0(d, n-1, score, dmat, dmax);
+        if (d<n) *dn += coxd0(d, n-1, score, dmat, dmax);
     }
     return(*dn);
 }
@@ -22,7 +24,7 @@ double coxd1(int d, int n, double *score, double *dmat, double *d1,
     int indx;
     
     indx = (n-1)*dmax + d -1;  /*index to the current array member d1[d.n]*/
-    if (d1[indx] ==0) { /* still to be computed */
+    if (d1[indx] == NOTDONE) { /* still to be computed */
         d1[indx] = score[n-1]* covar[n-1]* coxd0(d-1, n-1, score, dmat, dmax);
         if (d<n) d1[indx] += coxd1(d, n-1, score, dmat, d1, covar, dmax);
         if (d>1) d1[indx] += score[n-1]*
@@ -37,7 +39,7 @@ double coxd2(int d, int n, double *score, double *dmat, double *d1j,
     int indx;
     
     indx = (n-1)*dmax + d -1;  /*index to the current array member d1[d,n]*/
-    if (d2[indx] ==0) { /*still to be computed */
+    if (d2[indx] == NOTDONE) { /*still to be computed */
         d2[indx] = coxd0(d-1, n-1, score, dmat, dmax)*score[n-1] *
             covarj[n-1]* covark[n-1];
         if (d<n) d2[indx] += coxd2(d, n-1, score, dmat, d1j, d1k, d2, covarj, 
@@ -54,7 +56,7 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
               SEXP covar2,    SEXP offset2, SEXP strata2,
               SEXP ibeta,     SEXP eps2,    SEXP toler2) {
     int i,j,k;
-    int     iter;
+    int     iter, notfinite;
     
     double **covar, **imat;  /*ragged arrays */
     double *time, *status;   /* input data */
@@ -125,7 +127,8 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
     temp = 0;      /* temp variable for dsize */
 
     maxdeath =0;
-    j=0;   /* start of the strata */
+    j=0;   /* first obs of current stratum */
+    ndeath=0; nrisk=0;
     for (i=0; i<nused;) {
         if (strata[i]==1) { /* first obs of a new strata */
            if (i>0) {
@@ -145,7 +148,7 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
             nrisk++;
             ndeath += status[i];
             i++;
-            if (i>=nused || strata[i] >0) break;  /*tied deaths don't cross strata */
+            if (i>=nused || strata[i] >0) break;  /* don't cross strata */
         }
         if (ndeath > maxdeath) maxdeath = ndeath;
     }
@@ -181,7 +184,7 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
         if (strata[i] >0) { /* first obs of a new strata */
             maxdeath= strata[i];
             dtemp = dmem0;
-            for (j=0; j<dmemtot; j++) *dtemp++ =0.0;
+            for (j=0; j<dmemtot; j++) *dtemp++ = NOTDONE;
             sstart =i;
             nrisk =0;
         }
@@ -240,7 +243,7 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
     for (i=0; i<nvar; i++)
         loglik[2] +=  u[i]*d1[i];
 
-    if (maxiter==0) {
+    if (maxiter==0 || isfinite(loglik[0])==0) { /* give up on overflow */
         iter =0;  /*number of iterations */
         loglik[4] = iter;
         chinv2(imat, nvar);
@@ -287,7 +290,7 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
             if (strata[i] >0) { /* first obs of a new strata */
                 maxdeath= strata[i];
                 dtemp = dmem0;
-                for (j=0; j<dmemtot; j++) *dtemp++ =0.0;
+                for (j=0; j<dmemtot; j++) *dtemp++ = NOTDONE;
                 sstart =i;
                 nrisk =0;
             }
@@ -336,7 +339,17 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
         */
         loglik[3] = cholesky2(imat, nvar, toler); 
 
-        if (fabs(1-(loglik[1]/newlk))<= eps && halving==0) { /* all done */
+        notfinite = 0;
+        for (i=0; i<nvar; i++) {
+                if (isfinite(u[i]) ==0) notfinite=2;     /* infinite score stat */
+            for (j=0; j<nvar; j++) {
+                if (isfinite(imat[i][j]) ==0) notfinite =3; /*infinite imat */
+                }        
+            }        
+        if (isfinite(newlk) ==0) notfinite =4;
+
+        if (notfinite==0 && fabs(1-(loglik[1]/newlk))<= eps && halving==0) { 
+            /* all done */
             loglik[1] = newlk;
            loglik[4] = iter;
            chinv2(imat, nvar);
@@ -364,7 +377,7 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
 
         if (iter==maxiter) break;  /*skip the step halving and etc */
 
-        if (newlk < loglik[1])   {    /*it is not converging ! */
+        if (notfinite > 0 || newlk < loglik[1])   { /*it is not converging ! */
                 halving =1;
                 for (i=0; i<nvar; i++)
                     beta[i] = (oldbeta[i] + beta[i]) /2; /*half of old increment */
@@ -383,8 +396,67 @@ SEXP coxexact(SEXP maxiter2,  SEXP y2,
 
 
     /*
-    ** Ran out of iterations 
+    ** We end up here only if we ran out of iterations
+    **  recompute the last good version of the loglik and imat
+    ** If maxiter =0 or 1, though, leave well enough alone.
     */
+    if (maxiter > 1) {
+       for (i=0; i< nvar; i++) beta[i] = oldbeta[i];
+       newlk =0;
+       for (i=0; i<nvar; i++) {
+           u[i] =0;
+           for (j=0; j<nvar; j++)
+               imat[i][j] =0;
+       }
+       sstart =0;  /* a line to make gcc stop complaining */
+       for (i=0; i<nused; ) {
+           if (strata[i] >0) { /* first obs of a new strata */
+               maxdeath= strata[i];
+               dtemp = dmem0;
+               for (j=0; j<dmemtot; j++) *dtemp++ = NOTDONE;
+               sstart =i;
+               nrisk =0;
+           }
+           
+           dtime = time[i];  /*current unique time */
+           ndeath =0;
+           while (time[i] == dtime) {
+               zbeta= offset[i];
+               for (j=0; j<nvar; j++) zbeta += covar[j][i] * beta[j];
+               score[i] = exp(zbeta);
+               if (status[i]==1) {
+                   newlk += zbeta;
+                   for (j=0; j<nvar; j++) u[j] += covar[j][i];
+                   ndeath++;
+               }
+               nrisk++;
+               i++;
+               if (i>=nused || strata[i] >0) break; 
+           }
+
+           /* We have added up over the death time, now process it */
+           if (ndeath >0) { /* Add to the loglik */
+               d0 = coxd0(ndeath, nrisk, score+sstart, dmem0, maxdeath);
+               R_CheckUserInterrupt();
+               newlk -= log(d0);
+               dmem2 = dmem0 + (nvar+1)*dsize;  /*start for the second deriv memory */
+               for (j=0; j<nvar; j++) { /* for each covariate */
+                   d1[j] = coxd1(ndeath, nrisk, score+sstart, dmem0, dmem1[j], 
+                                 covar[j]+sstart, maxdeath) / d0;
+                   if (ndeath > 3) R_CheckUserInterrupt();
+                   u[j] -= d1[j];
+                   for (k=0; k<= j; k++) {  /* second derivative*/
+                       temp = coxd2(ndeath, nrisk, score+sstart, dmem0, dmem1[j],
+                                    dmem1[k], dmem2, covar[j] + sstart, 
+                                    covar[k] + sstart, maxdeath);
+                       if (ndeath > 5) R_CheckUserInterrupt();
+                       imat[k][j] += temp/d0 - d1[j]*d1[k];
+                       dmem2 += dsize;
+                   }
+               }
+           }
+        }
+    }
     loglik[1] = newlk;
     loglik[3] = 1000;  /* signal no convergence */
     loglik[4] = iter;

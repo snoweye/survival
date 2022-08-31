@@ -88,11 +88,17 @@ survfit.coxph <-
       if (is.null(mf)) {
           weights <- object$weights  # let offsets/weights be NULL until needed
           offset <- NULL
+          offset.mean <- 0
           X <- object[['x']]
       }
       else {
           weights <- model.weights(mf)
           offset <- model.offset(mf)
+          if (is.null(offset)) offset.mean <- 0
+          else {
+              if (is.null(weights)) offset.mean <- mean(offset)
+              else offset.mean <- sum(offset * (weights/sum(weights)))
+          }
           X <- model.matrix.coxph(object, data=mf)
           if (is.null(Y) || coxms) {
               Y <- model.response(mf)
@@ -131,10 +137,10 @@ survfit.coxph <-
           # To do so, remove any rows of the data with an endpoint before that
           #  time.
           if (ncol(Y)==3) {
-              keep <- Y[,2] > start.time
-              Y[keep,1] <- pmax(Y[keep,1], start.time)
+              keep <- Y[,2] >= start.time
+      #        Y[keep,1] <- pmax(Y[keep,1], start.time)  # removed 2/2022
           }
-          else keep <- Y[,1] > start.time
+          else keep <- Y[,1] >= start.time
           if (!any(Y[keep, ncol(Y)]==1)) 
               stop("start.time argument has removed all endpoints")
           Y <- Y[keep,,drop=FALSE]
@@ -152,16 +158,15 @@ survfit.coxph <-
           # se.fit <- FALSE
           X <- matrix(0., nrow=n, ncol=1)
           if (is.null(offset)) offset <- rep(0, n)
-          xcenter <- mean(offset)
+          xcenter <- offset.mean
           coef <- 0.0
           varmat <- matrix(0.0, 1, 1)
-          risk <- rep(exp(offset- mean(offset)), length=n)
+          risk <- rep(exp(offset- offset.mean), length=n)
       }
       else {
           varmat <- object$var
           beta <- ifelse(is.na(object$coefficients), 0, object$coefficients)
-          if (is.null(offset)) xcenter <- sum(object$means * beta)
-          else xcenter <- sum(object$means * beta)+ mean(offset)
+          xcenter <- sum(object$means * beta) + offset.mean
           if (!is.null(object$frail)) {
              keep <- !grepl("frailty(", dimnames(X)[[2]], fixed=TRUE)
              X <- X[,keep, drop=F]
@@ -197,7 +202,10 @@ survfit.coxph <-
               stop("Newdata cannot be used when a model has frailty terms")
 
           Terms2 <- Terms 
-          if (!individual)  Terms2 <- delete.response(Terms)
+          if (!individual)  {
+              Terms2 <- delete.response(Terms)
+              y2 <- NULL  # a dummy to carry along, for the call to coxsurv.fit
+          }
           if (is.vector(newdata, "numeric")) {
               if (individual) stop("newdata must be a data frame")
               if (is.null(names(newdata))) {
@@ -281,9 +289,10 @@ survfit.coxph <-
           }
       } else {
           offset2 <- model.offset(mf2)
-          if (length(offset2) >0) offset2 <- offset2 
-          else offset2 <- 0
-          x2 <- model.matrix(Terms2, mf2)[,-1, drop=FALSE]  #no intercept
+          if (length(offset2)==0 ) offset2 <- 0
+          # a model with only an offset, but newdata containing a value for it
+          if (length(object$means)==0) x2 <- 0
+          else x2 <- model.matrix(Terms2, mf2)[,-1, drop=FALSE]  #no intercept
       }
       if (missing(newdata)) {
           if (inherits(formula, "coxphms"))
@@ -305,16 +314,18 @@ survfit.coxph <-
                                  Y, X, weights, risk, position, strata, oldid,
                                  y2, x2, risk2)
           if (has.strata && found.strata) {
-              if (is.matrix(result$surv)) {
-                  nr <- nrow(result$surv)  #a vector if newdata had only 1 row
+                  if (is.matrix(result$surv)) nr <- nrow(result$surv) 
+                  else nr <- length(result$surv)   # if newdata had only one row
                   indx1 <- split(1:nr, rep(1:length(result$strata), result$strata))
                   rows <- indx1[as.numeric(strata2)]  #the rows for each curve
 
                   indx2 <- unlist(rows)  #index for time, n.risk, n.event, n.censor
                   indx3 <- as.integer(strata2) #index for n and strata
 
-                  for(i in 2:length(rows)) rows[[i]] <- rows[[i]]+ (i-1)*nr #linear subscript
-                  indx4 <- unlist(rows)   #index for surv and std.err
+                  if (is.matrix(result$surv)) {
+                      for(i in 2:length(rows)) rows[[i]] <- rows[[i]]+ (i-1)*nr #linear subscript
+                      indx4 <- unlist(rows)   #index for surv and std.err
+                  } else indx4 <- indx2
                   temp <- result$strata[indx3]
                   names(temp) <- row.names(mf2)
                   new <- list(n = result$n[indx3],
@@ -327,8 +338,7 @@ survfit.coxph <-
                               cumhaz = result$cumhaz[indx4])
                   if (se.fit) new$std.err <- result$std.err[indx4]
                   result <- new
-              }
-          }
+          }    
       }
       if (!censor) {
           kfun <- function(x, keep){ if (is.matrix(x)) x[keep,,drop=F] 
@@ -342,7 +352,13 @@ survfit.coxph <-
               }
           result <- lapply(result, kfun, keep)
           }
-      result$logse = TRUE   # this will migrate further in
+          
+      if (se.fit) {
+          result$logse = TRUE   # this will migrate to solutio
+          # In this particular case, logse=T and they are the same
+          #  Other cases await addition of code
+          if (stype==2) result$std.chaz <- result$std.err
+      }
 
       if (se.fit && conf.type != "none") {
           ci <- survfit_confint(result$surv, result$std.err, logse=result$logse,

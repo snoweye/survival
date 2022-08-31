@@ -29,7 +29,9 @@ any missing coefficients are set to zero.
 \item{naive.var}{
 this component will be present only if the \code{robust} option was true.  If so, 
 the \code{var} component will contain the robust estimate of variance, and this 
-component will contain the ordinary estimate. 
+component will contain the ordinary estimate. (A far better name would
+be \code{asymp.var} since it contains the model-based asympotitic
+variance estimate, which is not necessarily "naive"; but that ship has sailed.)
 }
 \item{loglik}{
 a vector of length 2 containing the log-likelihood with the initial values and 
@@ -55,8 +57,10 @@ number of iterations used.
 the martingale residuals. 
 }
 \item{means}{
-vector of column means of the X matrix.  Subsequent survival curves are 
-adjusted to this value. 
+  vector of values used as the reference for each covariate.
+  For instance, a later call to \code{predict(fit, type='risk')} will
+  give the hazard ratio between an observation and this reference.
+  (For most covariates this will contain the mean.)
 }
 \item{n}{
 the number of observations used in the fit. 
@@ -79,19 +83,7 @@ the na.action attribute, if any, that was returned by the \code{na.action}
 routine. 
 }
 \item{timefix}{the value of the timefix option used in the fit}
-\item{cmap}{the coefficient map, present for multi-state coxph fits. There
-  a column for each transition and a row for each coefficient, the value
-  maps that transition/coefficient pair to a position in the coefficient
-  vector.
-  If a particular covariate is not used by the transition the matrix
-  will contain a zero, if two transitions share a coefficient the matrix
-  will contain repeats.}
-\item{stratum_map}{stratum mapping, present for multi-state coxph fits.
-  The row labeled `(Baseline)' identifies transitions that do or do not
-  share a baseline stratum.  Further rows correspond to strata() terms
-  in the model, each of which may apply to some transitions and not others.
-}
-  \item{...}{
+\item{...}{
 The object will also contain the following, for documentation see the \code{lm} 
 object: \code{terms}, \code{assign}, \code{formula}, \code{call}, and, optionally, \code{x}, \code{y}, 
 and/or \code{frame}. 

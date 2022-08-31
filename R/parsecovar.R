@@ -52,7 +52,7 @@ parsecovar1 <- function(flist, statedata) {
     list(rhs = rhs, lhs= lterm)
 }
 rightslash <- function(x) {
-    if (class(x) != 'call') return(x)
+    if (!inherits(x, 'call')) return(x)
     else {
         if (x[[1]] == as.name('/')) return(list(x[[2]], x[[3]]))
         else if (x[[1]]==as.name('+') || (x[[1]]==as.name('-') && length(x)==3)||
@@ -146,7 +146,7 @@ parsecovar2 <- function(covar1, statedata, dformula, Terms, transitions,states) 
     # It has an extra first row for intercept (baseline)
     # Fill it in with the default formula
     nstate <- length(states)
-    tmap <- array(0, dim=c(nterm+1, nstate, nstate))
+    tmap <- array(0L, dim=c(nterm+1, nstate, nstate))
     dmap <- array(seq_len(length(tmap)), dim=c(nterm+1, nstate, nstate)) #unique values
     dterm <- termmatch(attr(terms(dformula), "factors"), allterm)
     dterm <- c(1L, 1L+ dterm)  # add intercept
@@ -292,8 +292,10 @@ parsecovar2 <- function(covar1, statedata, dformula, Terms, transitions,states) 
     # If the hazard for colum 6 is proportional to the hazard for column 2,
     # the tmap2[1,2] = tmap[1,6], and phbaseline[6] =2
     temp <- tmap2[1,]
-    tmap2[1,] <- match(abs(tmap2[1,]), unique(abs(temp)))
-    phbaseline <- ifelse(temp<0, tmap2[1,], 0)
+    indx <- which(temp> 0)
+    tmap2[1,] <- indx[match(abs(temp), temp[indx])]
+    phbaseline <- ifelse(temp<0, tmap2[1,], 0)    # remembers column numbers   
+    tmap2[1,] <- match(tmap2[1,], unique(tmap2[1,])) # unique strata 1,2, ...
                       
     if (nrow(tmap2) > 1)
         tmap2[-1,] <- match(tmap2[-1,], unique(c(0L, tmap2[-1,]))) -1L
@@ -307,29 +309,32 @@ parsecovar2 <- function(covar1, statedata, dformula, Terms, transitions,states) 
 parsecovar3 <- function(tmap, Xcol, Xassign, phbaseline=NULL) {
     # sometime X will have an intercept, sometimes not; cmap never does
     hasintercept <- (Xassign[1] ==0)
-
-    ptemp <- phbaseline[phbaseline >0]
-    nph.coef <- length(ptemp)
-    nph.row  <- length(unique(ptemp))
-    cmap <- matrix(0L, length(Xcol) + nph.row - hasintercept, ncol(tmap))
-    uterm <- unique(Xassign[Xassign != 0])   # terms that will have coefficients
+    ph.coef <- (phbaseline !=0)  # any proportional baselines?
+    ph.rows <- length(unique(phbaseline[ph.coef])) #extra rows to add to cmap
+    cmap <- matrix(0L, length(Xcol) + ph.rows -hasintercept, ncol(tmap))
+    uterm <- unique(Xassign[Xassign != 0L])  # terms that will have coefficients
     
     xcount <- table(factor(Xassign, levels=1:max(Xassign)))
-    mult <- 1+ max(xcount)  # temporary scaling
+    mult <- 1L+ max(xcount)  # temporary scaling
 
     ii <- 0
     for (i in uterm) {
         k <- seq_len(xcount[i])
         for (j in 1:ncol(tmap)) 
-            cmap[ii+k, j] <- if(tmap[i+1,j]==0) 0 else tmap[i+1,j]*mult +k
+            cmap[ii+k, j] <- if(tmap[i+1,j]==0) 0L else tmap[i+1,j]*mult +k
         ii <- ii + max(k)
     }
 
-    if (nph.row > 0) {
-        i <- length(Xcol)- hasintercept      # non-ph rows in cmap
-        j <- cbind(i+ match(ptemp, unique(ptemp)), which(phbaseline>0)) 
-        cmap[j] <- max(cmap) + seq(along.with =ptemp)
-        newname <- paste0("ph(",colnames(tmap)[unique(ptemp)], ")")
+    if (ph.rows > 0) {
+        temp <- phbaseline[ph.coef] # where each points
+        for (i in unique(temp)) {
+            # for each baseline that forms a reference
+            j <- which(phbaseline ==i)  # the others that are proportional to it
+            k <- seq_len(length(j))
+            ii <- ii +1   # row of cmat for this baseline
+            cmap[ii, j] <- max(cmap) + k  # fill in elements
+        }
+        newname <- paste0("ph(", colnames(tmap)[unique(temp)], ")")
     } else newname <- NULL
 
     # renumber coefs as 1, 2, 3, ...

@@ -81,10 +81,10 @@ SEXP survreg7(SEXP maxiter2,   SEXP nvarx,  SEXP y,
 
     /* pointers for the data regions of the input arguments */
     double **covar;
-    Sint   *strat ;
+    int    *strat ;
     double *time2, *time1, *status;
     double *offset;
-    Sint *fgrp;
+    int  *fgrp;
     double *wt;
 
     /* copies of the scalar input arguments */
@@ -113,7 +113,7 @@ SEXP survreg7(SEXP maxiter2,   SEXP nvarx,  SEXP y,
     double **hmat, **hinv, *beta, *hdiag;
     double *penalty;
     SEXP  rlist, rlistnames;
-    Sint *iter2, *flag;
+    int  *iter2, *flag;
     int nprotect;   /* number of PROTECT calls that I have issued */
 
     /*
@@ -174,7 +174,7 @@ SEXP survreg7(SEXP maxiter2,   SEXP nvarx,  SEXP y,
     **   parent routine, and also used to "backtrack" when we need to fail
     **   over to a Fisher step instead of an NR step
     */
-    newbeta = Calloc(LENGTH(beta2) + nvar3 + nfrail + nvar2*nvar3, double);
+    newbeta = CALLOC(LENGTH(beta2) + nvar3 + nfrail + nvar2*nvar3, double);
     jdiag = newbeta + length(beta2);
     u  = jdiag + nfrail;
     JJ  = dmatrix(u + nvar3,  nvar3, nvar2);
@@ -462,7 +462,7 @@ alldone:
 	    hinv[i-nfrail][j] = 0;
 	    }
 	}
-    Free(newbeta);
+    FREE(newbeta);
 
     /* Create the list object for return */
     PROTECT(rlist=allocVector(VECSXP, 9));

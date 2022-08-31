@@ -78,7 +78,7 @@ survexp <- function(formula, data,
 
     weights <- model.extract(mf, 'weights')
     if (length(weights) ==0) weights <- rep(1.0, n)
-    if (class(ratetable)=='ratetable' && any(weights !=1))
+    if (inherits(ratetable, 'ratetable') && any(weights !=1))
         warning("weights ignored")
 
     if (any(attr(Terms, 'order') >1))
@@ -145,6 +145,8 @@ survexp <- function(formula, data,
         if (any(names(mf[,rate]) !=  attr(ratetable$terms, 'term.labels')))
              stop("Unable to match new data to old formula")
         }
+    else if (inherits(ratetable, "coxphms"))
+        stop("survexp not defined for multi-state coxph models")
     else stop("Invalid ratetable")
     if (substring(method, 1, 10) == "individual") { #individual survival
         if (no.Y) stop("for individual survival an observation time must be given")

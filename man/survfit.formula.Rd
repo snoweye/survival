@@ -51,7 +51,7 @@
     identifies individual subjects, when a given person can have multiple
     lines of data.
   }
-  \item{cluster}{used to group observations for the infinitesmal
+  \item{cluster}{used to group observations for the infinitesimal
     jackknife variance estimate, defaults to the value of id.}
 
   \item{robust}{logical, should the function compute a robust variance.
@@ -66,7 +66,7 @@
 
   \item{etype}{
     a variable giving the type of event.  This has been superseded by
-    multi-state Surv objects and is depricated; see example below.
+    multi-state Surv objects and is deprecated; see example below.
   }
   \item{error}{this argument is no longer used}
   \item{\dots}{
@@ -141,7 +141,7 @@
 	at \code{start.time}, or if that is not specified, at
 	the time of the first event.}
       \item{type}{an older argument that combined \code{stype} and
-	\code{ctype}, now depricated.  Legal values were "kaplan-meier"
+	\code{ctype}, now deprecated.  Legal values were "kaplan-meier"
 	which is equivalent to \code{stype=1, ctype=1}, "fleming-harrington"
 	which is equivalent to \code{stype=2, ctype=1}, and "fh2" which
 	is equivalent to \code{stype=2, ctype=2.}
@@ -195,6 +195,14 @@ details. Methods defined for survfit objects are
   data the routine is at an impasse: a robust variance likely is called
   for, but requires either \code{id} or \code{cluster} information to be
   done correctly; it will default to robust=FALSE.
+
+  One unanticipated side effect of defaulting to a robust variance when
+  there are non integer case weights is that a fit using
+  interval censored data, which iterates an underlying KM using an
+  updated weight vector, now returns a robust variance by default.
+  Based on Sun (2001) this may be preferred, as the naive estimate
+  ignores the estimation of the weights.  The prior behavior can be
+  obtained with \code{robust= FALSE}.
  
   With the IJ estimate, the leverage values themselves can be returned
   as arrays with dimensions: number of subjects, number of unique times,
@@ -206,8 +214,9 @@ details. Methods defined for survfit objects are
   A numeric value for the \code{influence} argument allows finer
   control: 0= return neither (same as FALSE), 1= return the influence
   array for probability in state, 2= return the influence array for the
-  cumulative hazard, 3= both (same as TRUE).
-  }
+  cumulative hazard, 3= return both (same as TRUE).
+}
+
 \section{References}{
 Dorey, F. J. and Korn, E. L. (1987).  Effective sample sizes for confidence 
 intervals for survival probabilities.  \emph{Statistics in Medicine} 
@@ -231,6 +240,9 @@ Link, C. L. (1984). Confidence intervals for the survival
 function using Cox's proportional hazards model with  
 covariates.  \emph{Biometrics}  
 \bold{40}, 601-610.
+
+Sun, J. (2001). Variance estimation of a survival function
+for interval-censored data. \emph{Stat Med} \bold{20}, 1949-1957.
 
 Turnbull, B. W. (1974).  Nonparametric estimation of a survivorship
 function with doubly censored data. \emph{J Am Stat Assoc},

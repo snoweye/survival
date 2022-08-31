@@ -108,13 +108,14 @@ coxph(formula, data=, weights, subset,
   \item{tt}{optional list of time-transform functions.}
   \item{method}{alternate name for the \code{ties} argument.}
   \item{nocenter}{columns of the X matrix whose values lie strictly
-      within this set are not recentered}
+    within this set are not recentered.  Remember that a factor
+    variable becomes a set of 0/1 columns.}
   \item{...}{Other arguments will be passed to \code{\link{coxph.control}}
   }
 }
 \value{
 an object of class \code{coxph} representing the fit. 
-See \code{coxph.object} for details.  
+See \code{coxph.object} and \code{coxphms.object} for details.  
 }
 \section{Side Effects}{
   Depending on the call, the \code{predict}, \code{residuals},
@@ -270,10 +271,10 @@ Therneau, T., Grambsch, P., Modeling Survival Data: Extending the Cox Model.
 Springer-Verlag, 2000.
 }
 \seealso{
-\code{\link{coxph.object}}, \code{\link{coxph.control}},
-\code{\link{cluster}},  \code{\link{strata}},  \code{\link{Surv}},
-\code{\link{survfit}}, \code{\link{pspline}}, 
-\code{\link{ridge}}.   
+  \code{\link{coxph.object}}, \code{\link{coxphms.object}},
+  \code{\link{coxph.control}},
+  \code{\link{cluster}},  \code{\link{strata}},  \code{\link{Surv}},
+  \code{\link{survfit}}, \code{\link{pspline}}. 
 }
 \examples{
 # Create the simplest test data set 

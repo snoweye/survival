@@ -1,5 +1,6 @@
 \name{survfit.coxph}
 \alias{survfit.coxph}
+\alias{survfit.coxphms}
 \title{
   Compute a Survival Curve from a Cox model
 }
@@ -13,6 +14,11 @@ hazards model.
         conf.type=c("log","log-log","plain","none", "logit", "arcsin"),
         censor=TRUE, start.time, id, influence=FALSE,
         na.action=na.pass, type, ...)
+\method{survfit}{coxphms}(formula, newdata, 
+        se.fit=FALSE, conf.int=.95, individual=FALSE, stype=2, ctype,
+        conf.type=c("log","log-log","plain","none", "logit", "arcsin"),
+        censor=TRUE, start.time, id, influence=FALSE,
+        na.action=na.pass, type, p0=NULL, ...)
 }
 \arguments{
   \item{formula}{
@@ -20,24 +26,21 @@ hazards model.
   }
   \item{newdata}{
     a data frame with the same variable names as those that appear 
-    in the \code{coxph} formula.  It is also valid to use a vector, if
-    the data frame would consist of a single row.
-    
+    in the \code{coxph} formula. One curve is produced per row.
     The curve(s) produced will be representative of a cohort whose 
     covariates correspond to the values in \code{newdata}. 
-    Default is the mean of the covariates used in the 
-    \code{coxph} fit. 
   }
   \item{se.fit}{
     a logical value indicating whether standard errors should be 
-    computed.  Default is \code{TRUE}. 
+    computed.  Default is \code{TRUE} for standard models, \code{FALSE}
+    for multi-state (code not yet present for that case.)
   }
 
   \item{conf.int}{
     the level for a two-sided confidence interval on the survival curve(s). 
     Default is 0.95. 
   }
-  \item{individual}{depricated argument, replaced by the general
+  \item{individual}{deprecated argument, replaced by the general
     \code{id}}
   \item{stype}{computation of the survival curve, 1=direct, 2=
     exponenial of the cumulative hazard.}
@@ -74,8 +77,11 @@ hazards model.
   \item{influence}{option to return the influence values}
   \item{na.action}{the na.action to be used on the newdata argument}
   \item{type}{older argument that encompassed \code{stype} and
-    \code{ctype}, now depricated}
-   \item{\dots}{for future methods}
+    \code{ctype}, now deprecated}
+  \item{p0}{optional, a vector of probabilities.  The returned curve
+    will be for a cohort with this mixture of starting states.  Most
+    often a single state is chosen}
+     \item{\dots}{for future methods}
 }
 \value{
 an object of class \code{"survfit"}.  
@@ -111,21 +117,24 @@ details. Methods defined for survfit objects are
 
   If the \code{newdata} argument is missing, then a curve is produced
   for a single "pseudo" subject with
-  covariate values equal to the means of the data set.
+  covariate values equal to the \code{means} component of the fit.
   The resulting curve(s) almost never make sense, but 
-  The default remains due to an unwarranted attachment to the option shown by
-    some users and by other packages.  Two particularly egregious examples
-    are factor variables and interactions.  Suppose one were studying
-    interspecies transmission of a virus, and the data set has a factor
-    variable with levels ("pig", "chicken") and about equal numbers of
-    observations for each.  The ``mean'' covariate level will be 0.5 --
-    is this a flying pig?  As to interactions assume data with sex coded as 0/1,
-    ages ranging from 50 to 80, and a model with age*sex.  The ``mean''
-    value for the age:sex interaction term will be about 30, a value
-    that does not occur in the data.
-    Users are strongly advised to use the newdata argument.
+  the default remains due to an unwarranted attachment to the option shown by
+  some users and by other packages.  Two particularly egregious examples
+  are factor variables and interactions.  Suppose one were studying
+  interspecies transmission of a virus, and the data set has a factor
+  variable with levels ("pig", "chicken") and about equal numbers of
+  observations for each.  The ``mean'' covariate level will be 0.5 --
+  is this a flying pig?  As to interactions assume data with sex coded as 0/1,
+  ages ranging from 50 to 80, and a model with age*sex.  The ``mean''
+  value for the age:sex interaction term will be about 30, a value
+  that does not occur in the data.
+  Users are strongly advised to use the newdata argument.
   For these reasons predictions from a multistate coxph model require
   the newdata argument.
+
+  If the \code{coxph} model contained an offset term, then the data set
+  in the \code{newdata} argument should also contain that variable.
 
 When the original model contains time-dependent covariates, then the
 path of that covariate through time needs to be specified in order to
@@ -167,6 +176,16 @@ the \code{model=TRUE} argument must be added to the coxph call:
 \code{fit <- coxph(...); survfit(fit)}.
 This is a consequence of the non-standard evaluation process used by the
 \code{model.frame} function when a formula is involved.
+
+Let \eqn{\log[S(t; z)]}{log(S(t; z))} be the log of the survival curve
+for a fixed covariate vector \eqn{z}, then
+\eqn{\log[S(t; x)]= e^{(x-z)\beta}\log[S(t; z)]}{log(S(t; x))\exp((x-z)*beta)}
+is the log of the curve for any new covariate vector \eqn{x}.  
+There is an unfortunate tendency to refer to the reference curve with
+\eqn{z=0} as `THE' baseline hazard.  However, any \eqn{z} can be used as
+the reference point, and more importantly, if \eqn{x-z} is large the
+compuation can suffer severe roundoff error.  It is always safest to
+provide the desired \eqn{x} values directly via \code{newdata}.
 }
 
 \section{References}{
